@@ -17,11 +17,11 @@ struct DocChecker<'a> {
     curr_file: &'a Path,
 }
 
-fn print_warning(name: &str, file: &Path, loaction: &LineColumn) {
-    println!("{}: Missing doc for `{name}`\n  {} {}:{}:{}", "warning".yellow().bold(), "-->".bright_blue().bold(), file.display(),loaction.line, loaction.column );
+fn print_warning(name: &str, file: &Path, location: &LineColumn) {
+    println!("{}: Missing doc for `{name}`\n  {} {}:{}:{}", "warning".yellow().bold(), "-->".bright_blue().bold(), file.display(), location.line, location.column );
 }
 
-impl syn::visit::Visit<'_> for DocChecker<'_> {
+impl Visit<'_> for DocChecker<'_> {
     fn visit_impl_item(&mut self, i: &'_ ImplItem) {
         let (name, attrs) = match i {
             ImplItem::Fn(f) => (f.sig.ident.to_string(), &f.attrs),
@@ -32,17 +32,6 @@ impl syn::visit::Visit<'_> for DocChecker<'_> {
         if !has_doc(attrs) {
             print_warning(&name, self.curr_file, &i.span().start());
         }
-    }
-
-    fn visit_item_trait(&mut self, i: &'_ ItemTrait) {
-        let (name, attrs) = (i.ident.to_string(), &i.attrs);
-
-        if !has_doc(attrs) {
-            print_warning(&name, self.curr_file, &i.span().start());
-        }
-
-        // Recursively visit nested items
-        syn::visit::visit_item_trait(self, i);
     }
 
     fn visit_item(&mut self, i: &'_ Item) {
@@ -63,11 +52,22 @@ impl syn::visit::Visit<'_> for DocChecker<'_> {
         // Recursively visit nested items
         syn::visit::visit_item(self, i);
     }
+
+    fn visit_item_trait(&mut self, i: &'_ ItemTrait) {
+        let (name, attrs) = (i.ident.to_string(), &i.attrs);
+
+        if !has_doc(attrs) {
+            print_warning(&name, self.curr_file, &i.span().start());
+        }
+
+        // Recursively visit nested items
+        syn::visit::visit_item_trait(self, i);
+    }
 }
 
-fn scan_subcrate(subcrate_path: &Path) {
-    // Iterate over all Rust files in the subcrate
-    for entry in WalkDir::new(subcrate_path)
+fn scan_sub_crate(path: &Path) {
+    // Iterate over all Rust files in the path
+    for entry in WalkDir::new(path)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
@@ -86,6 +86,6 @@ fn scan_subcrate(subcrate_path: &Path) {
 fn main() {
     let metadata = MetadataCommand::new().exec().unwrap();
     for package in metadata.packages.iter().filter(|p| metadata.workspace_members.contains(&p.id)) {
-        scan_subcrate(&PathBuf::from(&package.manifest_path).parent().unwrap().join("src"))
+        scan_sub_crate(&PathBuf::from(&package.manifest_path).parent().unwrap().join("src"))
     }
 }
