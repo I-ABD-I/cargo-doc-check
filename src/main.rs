@@ -1,6 +1,7 @@
 use std::fs;
-use std::path::Path;
-use syn::{ImplItem, Item};
+use std::path::{Path, PathBuf};
+use cargo_metadata::MetadataCommand;
+use syn::{ImplItem, Item, ItemTrait};
 use syn::Attribute;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
@@ -31,8 +32,17 @@ impl syn::visit::Visit<'_> for DocChecker<'_> {
         if !has_doc(attrs) {
             print_warning(&name, self.curr_file, &i.span().start());
         }
+    }
 
+    fn visit_item_trait(&mut self, i: &'_ ItemTrait) {
+        let (name, attrs) = (i.ident.to_string(), &i.attrs);
 
+        if !has_doc(attrs) {
+            print_warning(&name, self.curr_file, &i.span().start());
+        }
+
+        // Recursively visit nested items
+        syn::visit::visit_item_trait(self, i);
     }
 
     fn visit_item(&mut self, i: &'_ Item) {
@@ -55,20 +65,27 @@ impl syn::visit::Visit<'_> for DocChecker<'_> {
     }
 }
 
-fn main() {
-    for entry in WalkDir::new("src")
+fn scan_subcrate(subcrate_path: &Path) {
+    // Iterate over all Rust files in the subcrate
+    for entry in WalkDir::new(subcrate_path)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
     {
         let path = entry.path();
         let content = fs::read_to_string(path).unwrap();
-        let parsed = syn::parse_file(&content).unwrap_or_else(|err| {
+        let parsed: syn::File = syn::parse_file(&content).unwrap_or_else(|err| {
             panic!("Failed to parse {:?}: {}", path, err);
         });
 
-        println!("🔍 Checking {:?}", path);
-        DocChecker {curr_file: path}
-            .visit_file(&parsed);
+        // Run DocChecker logic here
+        DocChecker { curr_file: path }.visit_file(&parsed);
+    }
+}
+
+fn main() {
+    let metadata = MetadataCommand::new().exec().unwrap();
+    for package in metadata.packages.iter().filter(|p| metadata.workspace_members.contains(&p.id)) {
+        scan_subcrate(&PathBuf::from(&package.manifest_path).parent().unwrap().join("src"))
     }
 }

@@ -8,4 +8,5 @@ syn = { version = "2", features = ["full", "visit"] }
 proc-macro2 = { version = "*", features = ["span-locations"] }
 walkdir = "2.5.0"
 owo-colors = "4"
+cargo_metadata = "0.14"
 
