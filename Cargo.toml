@@ -1,0 +1,11 @@
+[package]
+name = "cargo-doc-check"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+syn = { version = "2", features = ["full", "visit"] }
+proc-macro2 = { version = "*", features = ["span-locations"] }
+walkdir = "2.5.0"
+owo-colors = "4"
+
