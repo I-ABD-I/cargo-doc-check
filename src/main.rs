@@ -23,12 +23,12 @@ fn print_warning(name: &str, file: &Path, location: &LineColumn) {
 
 impl Visit<'_> for DocChecker<'_> {
     fn visit_impl_item(&mut self, i: &'_ ImplItem) {
+        
         let (name, attrs) = match i {
             ImplItem::Fn(f) => (f.sig.ident.to_string(), &f.attrs),
             ImplItem::Const(c) => (c.ident.to_string(), &c.attrs),
             _ => return
         };
-
         if !has_doc(attrs) {
             print_warning(&name, self.curr_file, &i.span().start());
         }
@@ -40,7 +40,7 @@ impl Visit<'_> for DocChecker<'_> {
             Item::Struct(s) => (s.ident.to_string(), &s.attrs),
             Item::Enum(e) => (e.ident.to_string(), &e.attrs),
             Item::Trait(t) => (t.ident.to_string(), &t.attrs),
-            Item::Impl(_) => return syn::visit::visit_item(self, i),
+            Item::Impl(im) if im.trait_.is_none() => return syn::visit::visit_item(self, i),
             Item::Const(c) => (c.ident.to_string(), &c.attrs),
             _ => return,
         };
@@ -55,7 +55,7 @@ impl Visit<'_> for DocChecker<'_> {
 
     fn visit_item_trait(&mut self, i: &'_ ItemTrait) {
         let (name, attrs) = (i.ident.to_string(), &i.attrs);
-
+        
         if !has_doc(attrs) {
             print_warning(&name, self.curr_file, &i.span().start());
         }
@@ -89,3 +89,4 @@ fn main() {
         scan_sub_crate(&PathBuf::from(&package.manifest_path).parent().unwrap().join("src"))
     }
 }
+
